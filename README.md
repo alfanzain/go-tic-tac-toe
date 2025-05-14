@@ -126,6 +126,7 @@ Although this project is for learning Websocket purpose only, I want to list the
 
     The idea is to make the server can create the player for the first time than listed them on lobby. They can see the available room too. I believe it supports persistent player whenever the player changes the page from main menu to the game room and back
 
+* Spectator mode
 * Add chat functionality via WebSocket
 * Add game history (stored temporarily in memory)
 * Improve UI with animations or visual effects
