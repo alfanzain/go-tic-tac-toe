@@ -45,7 +45,7 @@ func (player *Player) Read() {
 		player.Conn.Close()
 	}()
 
-	sessionExpires := 5 * time.Second
+	sessionExpires := 15 * time.Minute
 
 	player.Conn.SetReadDeadline(time.Now().Add(sessionExpires))
 	for {

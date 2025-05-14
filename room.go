@@ -18,6 +18,8 @@ const (
 	RoomStateWaiting  RoomState = "waiting"
 	RoomStateActive   RoomState = "active"
 	RoomStateFinished RoomState = "finished"
+
+	MaxTurnCount int = 9
 )
 
 type Room struct {
@@ -26,6 +28,7 @@ type Room struct {
 	Board       [BoardMaxRow][BoardMaxCol]PlayerSide `json:"board"`
 	CurrentTurn PlayerSide                           `json:"current_turn"`
 	Status      RoomState                            `json:"status"`
+	TurnCount   int                                  `json:"turn_count"`
 
 	register      chan *Player
 	unregister    chan *Player
@@ -45,6 +48,7 @@ func NewRoom() *Room {
 		Board:       [3][3]PlayerSide{},
 		CurrentTurn: PlayerSideX,
 		Status:      RoomStateWaiting,
+		TurnCount:   0,
 
 		register:      make(chan *Player),
 		unregister:    make(chan *Player),
@@ -124,6 +128,11 @@ func (room *Room) StartGame() {
 	for {
 		select {
 		case action := <-room.broadcast:
+			if room.Status == RoomStateFinished {
+				log.Printf("game room [%s] is finished, ignoring action...\n", room.Id)
+				return
+			}
+
 			log.Printf("broadcast action to all players in the room [%s]\n", room.Id)
 
 			if action.ActionType == PlayerActionTypeMove {
@@ -136,6 +145,13 @@ func (room *Room) StartGame() {
 
 			if action.Data.Status == GameStateXWins || action.Data.Status == GameStateOWins {
 				action.ActionType = PlayerActionTypeEnd
+				room.Status = RoomStateFinished
+			} else {
+				if room.TurnCount >= MaxTurnCount {
+					action.ActionType = PlayerActionTypeEnd
+					action.Data.Status = GameStateDraw
+					room.Status = RoomStateFinished
+				}
 			}
 
 			for _, player := range room.Players {
@@ -143,6 +159,8 @@ func (room *Room) StartGame() {
 					player.send <- action
 				}
 			}
+
+			room.TurnCount++
 		}
 	}
 }
