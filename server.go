@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -99,14 +98,6 @@ func (s *Server) ServeGameWebsocket(w http.ResponseWriter, r *http.Request) {
 
 	go player.Read()
 	go player.Write()
-
-	if s.Rooms[roomId].IsFull() {
-		go s.Rooms[roomId].StartGame()
-
-		time.Sleep(500 * time.Millisecond)
-
-		s.Rooms[roomId].broadcast <- InitPlayerAction()
-	}
 }
 
 func (s *Server) ServeDebugGameRoomList(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,9 @@
+services:
+  game:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./scenes:/scenes
+    ports:
+      - "3000:3000"

@@ -14,6 +14,7 @@ type Player struct {
 	Name string          `json:"name"`
 	Room *Room           `json:"-"`
 	Conn *websocket.Conn `json:"-"`
+	Side PlayerSide      `json:"side"`
 
 	send     chan *PlayerAction
 	sendRoom chan *RoomMessage
@@ -29,6 +30,7 @@ func NewPlayer(room *Room, conn *websocket.Conn) *Player {
 		Name: name,
 		Room: room,
 		Conn: conn,
+		Side: "",
 
 		send:     make(chan *PlayerAction),
 		sendRoom: make(chan *RoomMessage),
@@ -43,11 +45,16 @@ func (player *Player) Read() {
 		player.Conn.Close()
 	}()
 
+	sessionExpires := 5 * time.Second
+
+	player.Conn.SetReadDeadline(time.Now().Add(sessionExpires))
 	for {
 		_, p, err := player.Conn.ReadMessage()
 		if err != nil {
+			log.Printf("failed read chat: %v", err)
+
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("failed read chat: %v", err)
+				log.Printf("unexpected close read chat: %v", err)
 			}
 			return
 		}
@@ -56,11 +63,14 @@ func (player *Player) Read() {
 			continue
 		}
 
+		log.Printf("player [%s:%s] makes an action: %v\n", player.Id, player.Name, string(p))
 		playerAction := NewPlayerAction(player, p)
-		log.Printf("player [%s:%s] makes an action: %v\n", player.Id, player.Name, playerAction)
 
-		log.Println("player", player.Name, "is broadcasting the message")
+		log.Println("player", player.Name, "is broadcasting the action")
 		player.Room.broadcast <- playerAction
+
+		// extend idle time
+		player.Conn.SetReadDeadline(time.Now().Add(sessionExpires))
 	}
 }
 
@@ -75,11 +85,11 @@ func (player *Player) Write() {
 				return
 			}
 
-			log.Printf("player [%s:%s] is about to receiving an action from its opponent: %v\n", player.Id, player.Name, action)
+			log.Printf("player [%s:%s] is about to receiving an action: %v\n", player.Id, player.Name, action)
 
 			writer, err := player.Conn.NextWriter(websocket.TextMessage)
 			if err != nil {
-				log.Fatal("failed to initiate next writer", err)
+				log.Fatal("failed to initiate next writer on send chan:", err)
 				return
 			}
 
@@ -87,7 +97,7 @@ func (player *Player) Write() {
 			writer.Write(ParsePlayerAction(action))
 
 			if err = writer.Close(); err != nil {
-				log.Fatal("failed to initiate next writer", err)
+				log.Fatal("failed to close next writer on send chan:", err)
 				return
 			}
 		case message, ok := <-player.sendRoom:
@@ -100,15 +110,15 @@ func (player *Player) Write() {
 
 			writer, err := player.Conn.NextWriter(websocket.TextMessage)
 			if err != nil {
-				log.Fatal("failed to initiate next writer", err)
+				log.Fatal("failed to initiate next writer on sendRoom chan:", err)
 				return
 			}
 
 			log.Println("player", player.Name, "is receiving the message")
 			writer.Write(message.Parse())
 
-			if err = writer.Close(); err != nil {
-				log.Fatal("failed to initiate next writer", err)
+			if err := writer.Close(); err != nil {
+				log.Fatal("failed to close next writer on sendRoom chan:", err)
 				return
 			}
 		}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -35,7 +36,8 @@ type Room struct {
 func NewRoom() *Room {
 	seed := time.Now().UTC().UnixNano()
 	nameGenerator := namegenerator.NewNameGenerator(seed)
-	id := nameGenerator.Generate()
+	name := nameGenerator.Generate()
+	id := fmt.Sprintf("room-%s", name)
 
 	return &Room{
 		Id:          id,
@@ -69,9 +71,11 @@ func (room *Room) RunMessaging() {
 			}
 
 			if room.Players[0] == nil {
+				player.Side = PlayerSideX
 				room.Players[0] = player
 				log.Printf("player [%s:%s] joined game [%s] as X!\n", player.Id, player.Name, room.Id)
 			} else if room.Players[1] == nil {
+				player.Side = PlayerSideO
 				room.Players[1] = player
 				log.Printf("player [%s:%s] joined game [%s] as O!\n", player.Id, player.Name, room.Id)
 			}
@@ -81,6 +85,27 @@ func (room *Room) RunMessaging() {
 					roomPlayer.sendRoom <- room.Info(roomPlayer)
 				}
 			}
+
+			if room.IsFull() {
+				log.Printf("game room [%s] is full, starting game...", room.Id)
+				room.Status = RoomStateActive
+				room.CurrentTurn = PlayerSideX
+
+				go room.StartGame()
+
+				time.Sleep(500 * time.Millisecond)
+
+				room.broadcast <- InitPlayerAction()
+			}
+		case player := <-room.unregister:
+			if player.Side == PlayerSideX {
+				room.Players[0] = nil
+			} else {
+				room.Players[1] = nil
+			}
+
+			room.Status = RoomStateFinished
+			room.broadcast <- EndPlayerAction(room, player)
 		case message := <-room.broadcastRoom:
 			log.Printf("broadcast room message to all players in the room [%s]\n", room.Id)
 
@@ -101,37 +126,54 @@ func (room *Room) StartGame() {
 		case action := <-room.broadcast:
 			log.Printf("broadcast action to all players in the room [%s]\n", room.Id)
 
+			if action.ActionType == PlayerActionTypeMove {
+				log.Printf("updating board room [%s]...\n", room.Id)
+				room.UpdateBoard(action.Data.Position.Row, action.Data.Position.Col, action.Data.Side)
+				action.Data.Board = room.Board
+				action.Data.Status = room.CheckGameStatus()
+				log.Printf("board room now [%v]\n", room.Board)
+			}
+
+			if action.Data.Status == GameStateXWins || action.Data.Status == GameStateOWins {
+				action.ActionType = PlayerActionTypeEnd
+			}
+
 			for _, player := range room.Players {
-				player.send <- action
+				if player != nil {
+					player.send <- action
+				}
 			}
 		}
 	}
 }
 
+func (room *Room) UpdateBoard(row, col int, side PlayerSide) {
+	room.Board[row][col] = side
+}
+
 func (room *Room) CheckGameStatus() GameState {
 	winCoords := [8][3][2]int{
-		{{0, 0}, {1, 0}, {2, 0}},
-		{{0, 1}, {1, 1}, {2, 1}},
-		{{0, 2}, {1, 2}, {2, 2}},
-
-		{{0, 0}, {0, 1}, {0, 2}},
-		{{1, 0}, {1, 1}, {1, 2}},
-		{{2, 0}, {2, 1}, {2, 2}},
-
-		{{0, 0}, {1, 1}, {2, 2}},
-		{{0, 2}, {1, 1}, {2, 0}},
+		{{0, 0}, {0, 1}, {0, 2}}, // Row 0
+		{{1, 0}, {1, 1}, {1, 2}}, // Row 1
+		{{2, 0}, {2, 1}, {2, 2}}, // Row 2
+		{{0, 0}, {1, 0}, {2, 0}}, // Column 0
+		{{0, 1}, {1, 1}, {2, 1}}, // Column 1
+		{{0, 2}, {1, 2}, {2, 2}}, // Column 2
+		{{0, 0}, {1, 1}, {2, 2}}, // Diagonal top-left to bottom-right
+		{{0, 2}, {1, 1}, {2, 0}}, // Diagonal top-right to bottom-left
 	}
 
-	// X player
 	for _, coords := range winCoords {
-		if room.Board[coords[0][0]][coords[0][1]] == PlayerSideX && room.Board[coords[1][0]][coords[1][1]] == PlayerSideX && room.Board[coords[2][0]][coords[2][1]] == PlayerSideX {
+		a, b, c := coords[0], coords[1], coords[2]
+		if room.Board[a[0]][a[1]] == PlayerSideX &&
+			room.Board[b[0]][b[1]] == PlayerSideX &&
+			room.Board[c[0]][c[1]] == PlayerSideX {
 			return GameStateXWins
 		}
-	}
 
-	// O player
-	for _, coords := range winCoords {
-		if room.Board[coords[0][0]][coords[0][1]] == PlayerSideO && room.Board[coords[1][0]][coords[1][1]] == PlayerSideO && room.Board[coords[2][0]][coords[2][1]] == PlayerSideO {
+		if room.Board[a[0]][a[1]] == PlayerSideO &&
+			room.Board[b[0]][b[1]] == PlayerSideO &&
+			room.Board[c[0]][c[1]] == PlayerSideO {
 			return GameStateOWins
 		}
 	}

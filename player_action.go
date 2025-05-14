@@ -28,13 +28,17 @@ type PlayerMovementPosition struct {
 	Col int `json:"col"`
 }
 
+type PlayerActionPayload struct {
+	Side     PlayerSide                           `json:"side,omitempty"`
+	Position PlayerMovementPosition               `json:"position,omitempty"`
+	Board    [BoardMaxRow][BoardMaxCol]PlayerSide `json:"board"`
+	Status   GameState                            `json:"status"`
+	Actor    *Player                              `json:"actor"`
+}
+
 type PlayerAction struct {
-	ActionType PlayerActionType                     `json:"action_type"`
-	Side       PlayerSide                           `json:"side"`
-	Position   PlayerMovementPosition               `json:"position"`
-	Board      [BoardMaxRow][BoardMaxCol]PlayerSide `json:"board"`
-	Status     GameState                            `json:"status"`
-	Actor      *Player                              `json:"player"`
+	ActionType PlayerActionType    `json:"action_type"`
+	Data       PlayerActionPayload `json:"data"`
 }
 
 func NewPlayerAction(player *Player, p []byte) *PlayerAction {
@@ -42,6 +46,9 @@ func NewPlayerAction(player *Player, p []byte) *PlayerAction {
 
 	log.Println("unmarshaling", string(p))
 	err := json.Unmarshal(p, &playerAction)
+	playerAction.Data.Actor = player
+	playerAction.Data.Side = player.Side
+
 	if err != nil {
 		log.Fatal("failed unmarshal chat: ", err)
 	}
@@ -52,11 +59,28 @@ func NewPlayerAction(player *Player, p []byte) *PlayerAction {
 func InitPlayerAction() *PlayerAction {
 	return &PlayerAction{
 		ActionType: PlayerActionTypeInit,
-		Side:       PlayerSideX,
-		Position:   PlayerMovementPosition{},
-		Board:      [3][3]PlayerSide{},
-		Status:     GameStateOngoing,
-		Actor:      &Player{},
+		Data: PlayerActionPayload{
+			Board:  [3][3]PlayerSide{},
+			Status: GameStateOngoing,
+			Actor:  &Player{},
+		},
+	}
+}
+
+func EndPlayerAction(room *Room, player *Player) *PlayerAction {
+	var gameState GameState
+	if player.Side == PlayerSideX {
+		gameState = GameStateOWins
+	} else {
+		gameState = GameStateXWins
+	}
+	return &PlayerAction{
+		ActionType: PlayerActionTypeEnd,
+		Data: PlayerActionPayload{
+			Board:  room.Board,
+			Status: gameState,
+			Actor:  &Player{},
+		},
 	}
 }
 
