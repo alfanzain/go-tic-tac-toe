@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <title>Document</title>
+</head>
+<body>
+  <div id="hud" class="flex flex-row justify-between w-3/4 mx-auto mt-6">
+    <div id="hudPlayerInfo">
+      <span id="hudPlayerInfoName" class="flex text-lg justify-items-start" />
+    </div>
+    <div id="hudOpponentInfo">
+      <span id="hudOpponentInfoName" class="flex text-lg justify-items-start" />
+    </div>
+  </div>
+  <div class="w-3/4 mx-auto mt-6">
+    <div>
+      <button type="button" class="board[0][0]" onclick="action(0,0)">Click me!</button>
+      <button type="button" class="board[0][1]" onclick="action(0,1)">Click me!</button>
+      <button type="button" class="board[0][2]" onclick="action(0,2)">Click me!</button>
+    </div>
+    <div>
+      <button type="button" class="board[1][0]" onclick="action(1,0)">Click me!</button>
+      <button type="button" class="board[1][1]" onclick="action(1,1)">Click me!</button>
+      <button type="button" class="board[1][2]" onclick="action(1,2)">Click me!</button>
+    </div>
+    <div>
+      <button type="button" class="board[2][0]" onclick="action(2,0)">Click me!</button>
+      <button type="button" class="board[2][1]" onclick="action(2,1)">Click me!</button>
+      <button type="button" class="board[2][2]" onclick="action(2,2)">Click me!</button>
+    </div>
+  </div>
+
+  <script>
+    const hudPlayerInfo = document.getElementById("hudPlayerInfo")
+    const hudOpponentInfo = document.getElementById("hudOpponentInfo")
+    const hudPlayerInfoName = document.getElementById("hudPlayerInfoName")
+    const hudOpponentInfoName = document.getElementById("hudOpponentInfoName")
+
+    let ws
+    let room = null
+    let player = null
+    let opponent = null
+
+    const path = window.location.pathname
+    const pathParts = path.split("/")
+    const roomId = pathParts[2]
+
+    const initHud = () => {
+      hudPlayerInfoName.textContent = `${player.name} (You)`
+      hudOpponentInfoName.textContent = opponent ? `${opponent.name}` : `Waiting opponent...`
+    }
+
+    const initWs = () => {
+      ws = new WebSocket(`ws://localhost:3000/room/${roomId}/socket`)
+
+      // ! TODO: learn so I can get initial message from onopen, not from onmessage
+      // ws.onopen = (event) => {
+      //   console.log(event)
+      // };
+
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data)
+
+        // if from server
+        if (message?.message_type) {
+          if (message?.message_type == "game_info") {
+            player = message.data.player
+
+            opponent = message.data.room.players.find(opponent => {
+              return opponent?.id !== player.id
+            });
+
+            initHud()
+          }
+        }
+      };
+    }
+
+    const action = (row, col) => {
+      ws.send(JSON.stringify({
+        row, 
+        col
+      }))
+    }
+
+    initWs()
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <title>Document</title>
+</head>
+<body>
+  <div class="w-3/4 mx-auto mt-6">
+    <form id="createRoomForm" method="post" class="flex flex-col gap-4 items-center">
+      <!-- <label for="playerNameInput">Display Name:</label> -->
+      <!-- <input type="text" id="playerName" class="w-[300px] border-2 b-black text-xl p-5" /> -->
+      <button type="submit" class="bg-green-600 text-white p-8 rounded-3xl">
+        Create Room!
+      </button>
+    </form>
+  </div>
+
+  <script>
+    const createRoomForm = document.getElementById("createRoomForm")
+    const playerName = document.getElementById("playerName")
+
+    createRoomForm.addEventListener("submit", (e) => {
+      e.preventDefault()
+      
+      fetch("http://localhost:3000/room", {
+        method: "post",
+        // body: JSON.stringify({
+        //   name: playerName.value
+        // })
+      })
+      .then(response => response.json())
+      .then((data) => {
+        window.location.href = "http://localhost:3000/room/" + data.data.room.id
+      })
+    })
+  </script>
+</body>
+</html>
