@@ -106,8 +106,8 @@ Two main Go channels handle server-client communication:
 
 ### 🔚 Connection Handling
 
-* When a player **closes or refreshes** the browser tab, the WebSocket disconnects and the server cleans up
-* If **inactive for 15 minutes**, the server automatically closes the connection and clears the room
+* When a player **closes or refreshes** the browser tab, the WebSocket disconnects
+* If **inactive for 15 minutes**, the server automatically closes the connection
 
 
 ---
